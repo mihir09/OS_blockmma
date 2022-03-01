@@ -60,16 +60,16 @@ struct LinkedList{
 };
 struct list_head lh;
 
-void printlist(void){
-	struct list_head *ptr;
-	struct LinkedList *my;
-	list_for_each(ptr,&lh){
-		my = list_entry(ptr, struct LinkedList, list);
-		printk(KERN_ALERT "----------");
-		printk(KERN_ALERT "%lld", my->c->tid);
-	}
+// void printlist(void){
+// 	struct list_head *ptr;
+// 	struct LinkedList *my;
+// 	list_for_each(ptr,&lh){
+// 		my = list_entry(ptr, struct LinkedList, list);
+// 		printk(KERN_ALERT "----------");
+// 		printk(KERN_ALERT "%lld", my->c->tid);
+// 	}
 	
-}
+// }
 
 extern struct miscdevice blockmma_dev;
 /**
@@ -79,7 +79,7 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
 {
     struct LinkedList *temp_node;
     // INIT_LIST_HEAD(&temp_node->list);
-    int ret = 0;
+    int i=0;
     void *mem1 = kmalloc(sizeof(float )*128*128, GFP_KERNEL);
     void *mem2 = kmalloc(sizeof(float )*128*128, GFP_KERNEL);
     void *mem3 = kmalloc(sizeof(float )*128*128, GFP_KERNEL);
@@ -88,17 +88,25 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
     temp_node->c->a = (__u64)mem1;
     temp_node->c->b = (__u64)mem2;
     temp_node->c->c = (__u64)mem3;
-    /* Assigning values*/
-    ret = copy_from_user(mem1,(void *)user_cmd->a,sizeof(float)*128*128);
-    if(ret)
-    	printk(KERN_ALERT"Error");
-    ret = copy_from_user(mem2,(void *)user_cmd->b,sizeof(float)*128*128);
-    if(ret)
-    	printk(KERN_ALERT"Error");
 
-    ret = copy_from_user(mem3,(void *)user_cmd->c,sizeof(float)*128*128);
-    if(ret)
-    	printk(KERN_ALERT"Error");
+    while (i<128){
+    	copy_from_user(mem1 + i * 128 * sizeof(float),(void *)user_cmd->a + i * sizeof(float) * user_cmd->m, sizeof(float)*128);
+    	copy_from_user(mem2 + i * 128 * sizeof(float),(void *)user_cmd->b + i * sizeof(float) * user_cmd->n, sizeof(float)*128);
+    	copy_from_user(mem3 + i * 128 * sizeof(float),(void *)user_cmd->c + i * sizeof(float) * user_cmd->k, sizeof(float)*128);
+    	i=i+1;
+    }
+
+        /* Assigning values*/
+    // ret = copy_from_user(mem1,(void *)user_cmd->a,sizeof(float)*128*128);
+    // if(ret)
+    // 	printk(KERN_ALERT"Error");
+    // ret = copy_from_user(mem2,(void *)user_cmd->b,sizeof(float)*128*128);
+    // if(ret)
+    // 	printk(KERN_ALERT"Error");
+
+    // ret = copy_from_user(mem3,(void *)user_cmd->c,sizeof(float)*128*128);
+    // if(ret)
+    // 	printk(KERN_ALERT"Error");
     temp_node->c->m = user_cmd->m;
     temp_node->c->n = user_cmd->n;
     temp_node->c->k = user_cmd->k;
@@ -113,14 +121,14 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
 
     
     temp_node->c->op = user_cmd->op;
-    printk(KERN_ALERT "%lld", temp_node->c->op);
-    printk(KERN_ALERT "%lld", temp_node->c->tid);
-    printk(KERN_ALERT "%lld", temp_node->c->a);
-    printk(KERN_ALERT "%lld", temp_node->c->b);
-    printk(KERN_ALERT "%lld", temp_node->c->c);
-    printk(KERN_ALERT "%lld", temp_node->c->m);
-    printk(KERN_ALERT "%lld", temp_node->c->n);
-    printk(KERN_ALERT "%lld", temp_node->c->k);
+    // printk(KERN_ALERT "%lld", temp_node->c->op);
+    // printk(KERN_ALERT "%lld", temp_node->c->tid);
+    // printk(KERN_ALERT "%lld", temp_node->c->a);
+    // printk(KERN_ALERT "%lld", temp_node->c->b);
+    // printk(KERN_ALERT "%lld", temp_node->c->c);
+    // printk(KERN_ALERT "%lld", temp_node->c->m);
+    // printk(KERN_ALERT "%lld", temp_node->c->n);
+    // printk(KERN_ALERT "%lld", temp_node->c->k);
     mutex_lock(&mp);
     list_add(&temp_node->list, &lh);
     mutex_unlock(&mp);
@@ -157,6 +165,7 @@ int blockmma_sync(struct blockmma_cmd __user *user_cmd)
 {
 	struct list_head *ptr, *q;
 	struct LinkedList *my;
+	int i=0;
 	mutex_lock(&mp);
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
@@ -169,18 +178,20 @@ int blockmma_sync(struct blockmma_cmd __user *user_cmd)
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
 		if (my->count == 2){
-			copy_to_user((void *)my->uc, (void *)my->c->c, sizeof(float)*128*128);
+			i=0;
+    		while (i<128){
+    			copy_to_user((void *)my->uc + i * sizeof(float)* my->c->k,
+    				(void *)my->c->c + i * sizeof(float) * 128, 
+    				sizeof(float)*128);
+    			i=i+1;
+    		}
+			// copy_to_user((void *)my->uc, (void *)my->c->c, sizeof(float)*128*128);
 			// my->count = 0;
     	}
 	}
 
 	list_for_each_safe(ptr, q, &lh) {
          my= list_entry(ptr, struct LinkedList, list);
-         // list_del(pos);
-         // if (my->count == 2)
-         // {
-
-         // }
          kfree((void *)my->c->a);
          kfree((void *)my->c->b);
          kfree((void *)my->c->c);
@@ -226,7 +237,7 @@ int blockmma_get_task(struct blockmma_hardware_cmd __user *user_cmd)
 			copy_to_user((void *)user_cmd->c, (void *)my->c->c ,sizeof(float)*128*128);
 
 			mutex_unlock(&mp);
-			printk(KERN_ALERT "%lld", user_cmd->tid);
+			// printk(KERN_ALERT "%lld", user_cmd->tid);
 		
 			return user_cmd->tid;
 		}
