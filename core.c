@@ -79,6 +79,7 @@ extern struct miscdevice blockmma_dev;
  */
 long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
 {
+	printk(KERN_ALERT"send_task");
     struct LinkedList *temp_node;
     int i=0;
     void *mem1 = kmalloc(sizeof(float )*128*128, GFP_KERNEL);
@@ -115,10 +116,10 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
     temp_node->uc = user_cmd->c;
     temp_node->count = 0;
 
-    // mutex_lock(&cnt);
+    mutex_lock(&cnt);
     temp_node->c->tid = task;
     task = task + 1;
-    // mutex_unlock(&cnt);
+    mutex_unlock(&cnt);
 
     
     temp_node->c->op = user_cmd->op;
@@ -130,12 +131,12 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
     // printk(KERN_ALERT "%lld", temp_node->c->m);
     // printk(KERN_ALERT "%lld", temp_node->c->n);
     // printk(KERN_ALERT "%lld", temp_node->c->k);
-    // mutex_lock(&mp);
-    spin_lock(&list_lock);
+    mutex_lock(&mp);
+    // spin_lock(&list_lock);
     list_add(&temp_node->list, &lh);
-    spin_unlock(&list_lock);
-    synchronize_rcu();
-    // mutex_unlock(&mp);
+    // spin_unlock(&list_lock);
+    // synchronize_rcu();
+    mutex_unlock(&mp);
         /*Init the list within the struct*/
     
     /*Add Node to Linked List*/
@@ -167,22 +168,23 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
  */
 int blockmma_sync(struct blockmma_cmd __user *user_cmd)
 {
+	printk(KERN_ALERT"sync");
 	struct list_head *ptr, *q;
 	struct LinkedList *my;
 	int i=0;
-	// mutex_lock(&mp);
-	rcu_read_lock();
+	mutex_lock(&mp);
+	// rcu_read_lock();
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
 		if (my->count != 2){
-			// mutex_unlock(&mp);
-			rcu_read_unlock();
+			mutex_unlock(&mp);
+			// rcu_read_unlock();
 			return -1;
     	}
 	}
-	rcu_read_unlock();
-	ptr = NULL;
-	spin_lock(&list_lock);
+	// rcu_read_unlock();
+	
+	// spin_lock(&list_lock);
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
 		if (my->count == 2){
@@ -207,22 +209,22 @@ int blockmma_sync(struct blockmma_cmd __user *user_cmd)
         kfree((void *)my->c);
         list_del(ptr);
     }
-    spin_unlock(&list_lock);
-    synchronize_rcu();
-  //   if(list_empty(&lh))
-  //   {
-  //   	printk(KERN_ALERT"Done");
-  //   }
-  //   else
-  //   {
- 	// 	list_for_each(ptr,&lh){
-		// 	my = list_entry(ptr, struct LinkedList, list);
-		// 	printk(KERN_ALERT"ELSE");
-		// }
-  //    }
+    // spin_unlock(&list_lock);
+    // synchronize_rcu();
+    if(list_empty(&lh))
+    {
+    	printk(KERN_ALERT"Done");
+    }
+    else
+    {
+ 		list_for_each(ptr,&lh){
+			my = list_entry(ptr, struct LinkedList, list);
+			printk(KERN_ALERT"ELSE");
+		}
+     }
 
 
-	// mutex_unlock(&mp);
+	mutex_unlock(&mp);
     
 	return 0;
 
@@ -237,8 +239,8 @@ int blockmma_get_task(struct blockmma_hardware_cmd __user *user_cmd)
 	// pid_t current->pid;
 	struct list_head *ptr;
 	struct LinkedList *my;
-	// mutex_lock(&mp);
-	spin_lock(&list_lock);
+	mutex_lock(&mp);
+	// spin_lock(&list_lock);
 	list_for_each(ptr,&lh){
 		
 		my = list_entry(ptr, struct LinkedList, list);
@@ -251,17 +253,17 @@ int blockmma_get_task(struct blockmma_hardware_cmd __user *user_cmd)
 			copy_to_user((void *)user_cmd->b, (void *)my->c->b ,sizeof(float)*128*128);
 			copy_to_user((void *)user_cmd->c, (void *)my->c->c ,sizeof(float)*128*128);
 
-			// mutex_unlock(&mp);
-			spin_unlock(&list_lock);
+			mutex_unlock(&mp);
+			// spin_unlock(&list_lock);
 			// printk(KERN_ALERT "%lld", user_cmd->tid);
-			synchronize_rcu();
-			return user_cmd->tid;
+			// synchronize_rcu();
+			return my->c_tid;
 		}
 	}
 		
-	// mutex_unlock(&mp);
-	spin_unlock(&list_lock);
-	synchronize_rcu();
+	mutex_unlock(&mp);
+	// spin_unlock(&list_lock);
+	// synchronize_rcu();
 	// synchronize_rcu();
 
 
@@ -272,10 +274,11 @@ int blockmma_get_task(struct blockmma_hardware_cmd __user *user_cmd)
  */
 int blockmma_comp(struct blockmma_hardware_cmd __user *user_cmd)
 {
+	printk(KERN_ALERT"comp");
 	struct list_head *ptr;
 	struct LinkedList *my;
-	// mutex_lock(&mp);
-	spin_lock(&list_lock);
+	mutex_lock(&mp);
+	// spin_lock(&list_lock);
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
 		if (my->c->tid == user_cmd->tid){
@@ -287,16 +290,16 @@ int blockmma_comp(struct blockmma_hardware_cmd __user *user_cmd)
     		copy_from_user((void *)my->c->c, (void *)user_cmd->c,sizeof(float)*128*128);
     		my->count = 2;
 
-			// mutex_unlock(&mp);
-			spin_unlock(&list_lock);
-			synchronize_rcu();
-			return 0;
+			mutex_unlock(&mp);
+			// spin_unlock(&list_lock);
+			// synchronize_rcu();
+			return -1;
 		}
 	}
-	// mutex_unlock(&mp);
+	mutex_unlock(&mp);
 	
-	spin_unlock(&list_lock);
-	synchronize_rcu();
+	// spin_unlock(&list_lock);
+	// synchronize_rcu();
     return -1;
 }
 
