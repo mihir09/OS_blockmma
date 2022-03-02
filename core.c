@@ -59,6 +59,7 @@ struct LinkedList{
     	__u64 uc;
     	struct list_head list;
     	int count;
+    	pid_t pid;
 };
 struct list_head lh;
 
@@ -79,7 +80,9 @@ extern struct miscdevice blockmma_dev;
  */
 long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
 {
-	printk(KERN_ALERT"send_task");
+	pid_t pid;
+	pid = current->pid;
+	// printk(KERN_ALERT"send_task");
     struct LinkedList *temp_node;
     int i=0;
     void *mem1 = kmalloc(sizeof(float )*128*128, GFP_KERNEL);
@@ -123,6 +126,9 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
 
     
     temp_node->c->op = user_cmd->op;
+    
+    temp_node->pid = pid;
+
     // printk(KERN_ALERT "%lld", temp_node->c->op);
     // printk(KERN_ALERT "%lld", temp_node->c->tid);
     // printk(KERN_ALERT "%lld", temp_node->c->a);
@@ -168,7 +174,9 @@ long blockmma_send_task(struct blockmma_cmd __user *user_cmd)
  */
 int blockmma_sync(struct blockmma_cmd __user *user_cmd)
 {
-	printk(KERN_ALERT"sync");
+	pid_t pid;
+	pid = current->pid;
+	// printk(KERN_ALERT"sync");
 	struct list_head *ptr, *q;
 	struct LinkedList *my;
 	int i=0;
@@ -176,41 +184,48 @@ int blockmma_sync(struct blockmma_cmd __user *user_cmd)
 	// rcu_read_lock();
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
-		if (my->count != 2){
-			mutex_unlock(&mp);
-			// rcu_read_unlock();
-			return -1;
+		if (my->pid == pid){
+			if (my->count != 2){
+				mutex_unlock(&mp);
+				// rcu_read_unlock();
+				return -1;
+	    	}
     	}
 	}
 	// rcu_read_unlock();
-	
+	printk(KERN_ALERT"----1------");
 	// spin_lock(&list_lock);
 	list_for_each(ptr,&lh){
 		my = list_entry(ptr, struct LinkedList, list);
-		if (my->count == 2){
-			i=0;
-    		while (i<128){
-    			copy_to_user((void *)my->uc + i * sizeof(float)* my->c->k,
-    				(void *)my->c->c + i * sizeof(float) * 128, 
-    				sizeof(float)*128);
-    			i=i+1;
-    		}
-			// copy_to_user((void *)my->uc, (void *)my->c->c, sizeof(float)*128*128);
-			// my->count = 0;
+		if (my->pid == pid){
+			if (my->count == 2){
+				i=0;
+	    		while (i<128){
+	    			copy_to_user((void *)my->uc + i * sizeof(float)* my->c->k,
+	    				(void *)my->c->c + i * sizeof(float) * 128, 
+	    				sizeof(float)*128);
+	    			i=i+1;
+	    		}
+				// copy_to_user((void *)my->uc, (void *)my->c->c, sizeof(float)*128*128);
+				// my->count = 0;
+	    	}
     	}
 	}
 
-
+	printk(KERN_ALERT"---- 2------");
 	list_for_each_safe(ptr, q, &lh){
         my= list_entry(ptr, struct LinkedList, list);
-        kfree((void *)my->c->a);
-        kfree((void *)my->c->b);
-        kfree((void *)my->c->c);
-        kfree((void *)my->c);
-        list_del(ptr);
+	        if (my->pid == pid){
+	        kfree((void *)my->c->a);
+	        kfree((void *)my->c->b);
+	        kfree((void *)my->c->c);
+	        kfree((void *)my->c);
+	        list_del(ptr);
+    	}
     }
     // spin_unlock(&list_lock);
     // synchronize_rcu();
+    printk(KERN_ALERT"----3-----");
     if(list_empty(&lh))
     {
     	printk(KERN_ALERT"Done");
@@ -257,7 +272,7 @@ int blockmma_get_task(struct blockmma_hardware_cmd __user *user_cmd)
 			// spin_unlock(&list_lock);
 			// printk(KERN_ALERT "%lld", user_cmd->tid);
 			// synchronize_rcu();
-			return my->c_tid;
+			return my->c->tid;
 		}
 	}
 		
